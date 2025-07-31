@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.env
+.env
+*.sqlite3
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.idea/
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Elastic Beanstalk files
+.elasticbeanstalk/*.log
+.elasticbeanstalk/*.tmp
+
+# Pipenv
+Pipfile.lock
+
+# Build artifacts
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Test output
+htmlcov/
+.coverage
