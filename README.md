@@ -1,72 +1,219 @@
-# README.md
+# End-to-End CI/CD Pipeline for Python Web App using AWS Elastic Beanstalk, CodeBuild, CodePipeline
 
-# Simple Web App
+---
 
-This project is a simple Flask web application that is designed to be deployed on AWS Elastic Beanstalk. It serves a greeting message when accessed.
+## 1. **GitHub Repository Setup (5 Minutes)**
 
-## Project Structure
+### Steps:
+
+1. **Create a GitHub Repository**
+
+   * Repository Name: `simple-web-app`
+   * Initialize with README.md
+
+2. **Write and Push Application Code**
+
+   * Application: Simple Python Flask App
+
+### Folder Structure:
 
 ```
-simple-web-app
-├── app.py
+simple-web-app/
+├── application.py
 ├── requirements.txt
-├── .ebextensions
+├── .ebextensions/
 │   └── python.config
 ├── buildspec.yml
-├── .elasticbeanstalk
-│   └── config.yml
-├── README.md
+└── Procfile
 ```
 
-## Setup Instructions
+### File Explanations:
 
-1. **Clone the Repository**: Clone this repository to your local machine.
+* **application.py**: Main Flask application script.
+* **requirements.txt**: Lists Python dependencies for CodeBuild & Elastic Beanstalk.
+* **.ebextensions/python.config**: Configuration for Elastic Beanstalk environment (e.g., Python version).
+* **buildspec.yml**: Instructions for CodeBuild on how to build the application.
+* **Procfile** is essential for Elastic Beanstalk to correctly identify and start your Flask application.
 
-2. **Install Dependencies**: Navigate to the project directory and install the required Python packages:
-   ```
-   pip install -r requirements.txt
-   ```
+---
 
-3. **Run the Application Locally**: You can run the Flask application locally using:
-   ```
-   python app.py
-   ```
-   Access the application at `http://127.0.0.1:5000/`.
+## 2. **Elastic Beanstalk Environment Setup (10 Minutes)**
 
-## Deployment to AWS Elastic Beanstalk
+### Steps:
 
-### Prerequisites
+1. Navigate to **Elastic Beanstalk Console**.
+2. Click **Create Application**.
 
-- Ensure you have the AWS CLI and Elastic Beanstalk CLI installed and configured with your AWS credentials.
+   * Name: `simple-web-app`
+   * Platform: Python
+   * Environment Type: Web Server
+3. Upload Sample Code (or leave it blank if using CodePipeline deployment).
+4. **Create Environment**.
 
-### Steps to Deploy
+### IAM Roles Required:
 
-1. **Initialize Elastic Beanstalk**: Run the following command in your project directory to initialize Elastic Beanstalk:
-   ```
-   eb init -p python-3.x your-application-name
-   ```
+* **ElasticBeanstalkServiceRole**
 
-2. **Create an Environment**: Create an Elastic Beanstalk environment:
-   ```
-   eb create your-environment-name
-   ```
+  * AWS managed policy: `AWSElasticBeanstalkManagedUpdatesCustomerRolePolicy`
+* **ElasticBeanstalkEC2InstanceProfile**
 
-3. **Deploy the Application**: Deploy your application to Elastic Beanstalk:
-   ```
-   eb deploy
-   ```
+  * Policies:
 
-4. **Access Your Application**: Once deployed, you can access your application using the URL provided by Elastic Beanstalk.
+    * `AWSElasticBeanstalkWebTier`
+    * `AWSElasticBeanstalkWorkerTier`
+    * `AmazonS3ReadOnlyAccess`
 
-## CodePipeline Setup
+---
 
-To automate the build and deployment process, you can set up AWS CodePipeline:
+## 3. **CodeBuild Project Setup (5 Minutes)**
 
-1. Go to the AWS Management Console and navigate to CodePipeline.
-2. Create a new pipeline and connect it to your source repository (e.g., GitHub).
-3. Add a build stage that uses CodeBuild with the `buildspec.yml` you created.
-4. Add a deploy stage that deploys to your Elastic Beanstalk environment.
+### Steps:
 
-## Note
+1. Navigate to **AWS CodeBuild Console** → Create Build Project
+2. Project Name: `simple-web-app-build`
+3. Source Provider: GitHub
+4. Environment:
 
-Make sure to replace `your-application-name` and `your-environment-name` with your actual application and environment names in the commands. Adjust the Python version in the configuration files as needed.
+   * Managed Image: Ubuntu / Standard 5.0
+   * Runtime: Python 3.x
+5. Service Role:
+
+   * Create a new Role or Use Existing: `CodeBuildServiceRole-simple-web-app`
+6. Buildspec file:
+
+   * Use buildspec.yml in source repo.
+7. Artifacts:
+
+   * Type: Amazon S3
+   * Bucket: (Create S3 Bucket for artifacts)
+
+### IAM Role for CodeBuild:
+
+* **CodeBuildServiceRole-simple-web-app**
+
+  * Policies:
+
+    * `AmazonS3FullAccess` (for artifacts)
+    * `AWSCodeBuildDeveloperAccess`
+
+---
+
+## 4. **CodePipeline Setup (10 Minutes)**
+
+### Steps:
+
+1. Navigate to **AWS CodePipeline Console** → Create Pipeline
+2. Pipeline Name: `simple-web-app-pipeline`
+3. Service Role:
+
+   * Create or Use Existing: `AWSCodePipelineServiceRole-ap-south-1-simple-web-app-pipeline`
+4. Stages:
+
+#### Stage 1: Source
+
+* Provider: GitHub
+* Repository: `simple-web-app`
+
+#### Stage 2: Build
+
+* Provider: CodeBuild
+* Project: `simple-web-app-build`
+
+#### Stage 3: Deploy
+
+* Provider: Elastic Beanstalk
+* Application Name: `simple-web-app`
+* Environment Name: (Elastic Beanstalk Environment)
+
+### IAM Role for CodePipeline:
+
+* **AWSCodePipelineServiceRole-ap-south-1-simple-web-app-pipeline**
+
+  * Custom Inline Policy:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "codebuild:StartBuild",
+                "codebuild:BatchGetBuilds",
+                "elasticbeanstalk:CreateApplicationVersion",
+                "elasticbeanstalk:UpdateEnvironment",
+                "elasticbeanstalk:DescribeApplications",
+                "elasticbeanstalk:DescribeEnvironments",
+                "s3:GetObject",
+                "s3:GetObjectVersion"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
+```
+
+---
+
+## 5. **Finalize Pipeline and Test (5 Minutes)**
+
+### Steps:
+
+1. Go to **CodePipeline Console** → simple-web-app-pipeline
+2. Click **Release Change**
+3. Monitor Source → Build → Deploy stages.
+4. Validate deployment on Elastic Beanstalk URL.
+
+---
+
+## Workflow Diagram (GitHub → CodePipeline → CodeBuild → Elastic Beanstalk)
+
+```
+[GitHub Repo]
+     |
+     v
+[CodePipeline (Source Stage)]
+     |
+     v
+[CodeBuild (Build Stage)]
+     |
+     v
+[Elastic Beanstalk (Deploy Stage)]
+     |
+     v
+[Live Application URL]
+```
+
+---
+
+## IAM Roles Recap:
+
+| Role Name                                                     | Policies Attached                                                                 |
+| ------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| ElasticBeanstalkServiceRole                                   | AWSElasticBeanstalkManagedUpdatesCustomerRolePolicy                               |
+| ElasticBeanstalkEC2InstanceProfile                            | AWSElasticBeanstalkWebTier, AWSElasticBeanstalkWorkerTier, AmazonS3ReadOnlyAccess |
+| CodeBuildServiceRole-simple-web-app                           | AWSCodeBuildDeveloperAccess, AmazonS3FullAccess                                   |
+| AWSCodePipelineServiceRole-ap-south-1-simple-web-app-pipeline | Custom Inline Policy (CodeBuild, Elastic Beanstalk, S3 access)                    |
+
+---
+
+## Summary:
+
+* **GitHub**: Source Code Repository.
+* **CodeBuild**: Build artifacts and application packages.
+* **Elastic Beanstalk**: Deployment Platform (PaaS).
+* **CodePipeline**: Automates end-to-end CI/CD flow.
+* **IAM Roles**: Secure permission boundaries for each service.
+
+---
+
+## Optional Enhancements:
+
+* Add **Approval Stage** before Deploy in CodePipeline.
+* Use **Elastic Beanstalk Docker Platform** with Dockerrun.aws.json.
+* Configure **Notifications** via SNS for pipeline events.
+* Add **CodeDeploy** if you're using EC2 or ECS instead of Beanstalk.
+
+---
+
+This completes the full automated CI/CD pipeline setup for deploying a Python web application using GitHub, AWS CodeBuild, CodePipeline, and Elastic Beanstalk.
