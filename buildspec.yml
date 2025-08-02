@@ -12,5 +12,4 @@ phases:
       - echo Building the application
 artifacts:
   files:
-    - app.py
-    - requirements.txt
+    - '**/*'     # Include all files in artifact (or specify only needed files)
